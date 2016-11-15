@@ -152,6 +152,8 @@ sampleVAtFaceU(const vector<float>& vArray, int u, int v, int dim)
          4.0f;
 }
 
+
+
 float
 sampleUAtFaceV(const vector<float>& uArray, int u, int v, int dim)
 {
@@ -160,6 +162,8 @@ sampleUAtFaceV(const vector<float>& uArray, int u, int v, int dim)
           uArray[array2Dto1D(u, v, dim)] + uArray[array2Dto1D(u + 1, v, dim)]) /
          4.0f;
 }
+
+
 
 float
 sampleVAtFaceV(const vector<float>& vArray, int u, int v, int dim)
@@ -265,9 +269,9 @@ simpleAdvect(const vArray& u, const vArray& v, vArray& densityWrite,
   int j;
 
 #pragma omp parallel for
-  for (j = 1; j < dimension; j++) {
+  for (j = 1; j < dimension-1; j++) {
 #pragma omp simd safelen(32)
-    for (i = 1; i < dimension; i++) {
+    for (i = 1; i < dimension-1; i++) {
       // float uComponent = sampleTrilinear(u, i + 0.5f, j, dimension + 1);
       // float vComponent = sampleTrilinear(v, i, j + 0.5f, dimension + 1);
 
@@ -568,6 +572,8 @@ bouyancy(vArray& u, vArray& v, const vArray& densityRead, const int dimension)
   for (j = 0; j < dimension; j++) {
 #pragma omp simd safelen(32)
     for (i = 0; i < dimension; i++) {
+
+
       v[array2Dto1D(i, j, dimension + 1)] +=
         (densityRead[array2Dto1D(i, j, dimension)] / 2.0f) * mult;
     }
@@ -577,10 +583,13 @@ bouyancy(vArray& u, vArray& v, const vArray& densityRead, const int dimension)
   for (j = 0; j < dimension; j++) {
 #pragma omp simd safelen(32)
     for (i = 0; i < dimension; i++) {
+
       v[array2Dto1D(i, j + 1, dimension + 1)] +=
         (densityRead[array2Dto1D(i, j, dimension)] / 2.0f) * mult;
     }
   }
+
+
 }
 
 void
@@ -591,9 +600,9 @@ calcDivergence(const vArray& u, const vArray& v, vArray& divergence,
   int j;
 
 #pragma omp parallel for
-  for (j = 1; j < dimension - 1; j++) {
+  for (j = 1; j < dimension -1 ; j++) {
 #pragma omp simd safelen(32)
-    for (i = 1; i < dimension - 1; i++) {
+    for (i = 1; i < dimension ; i++) {
       // if we are on the bounary wall. not sure what to do to stop wrapping
       // around
 
@@ -609,19 +618,19 @@ calcDivergence(const vArray& u, const vArray& v, vArray& divergence,
           v[array2Dto1D(i, j, dimension + 1)])) +
         ((u[array2Dto1D(i, j, dimension + 1)] - 0.0f) *
          leftWallMask) - //  plus extra correction term ie bridson pg 49ed 1
-        ((u[array2Dto1D(i + 1, j, dimension + 1)] - 0.0f) *
+        (  (u[array2Dto1D(i + 1, j, dimension + 1)] - 0.0f ) *
          rightWallMask) +                                                 //  V
         ((v[array2Dto1D(i, j, dimension + 1)] - 0.0f) * bottomWallMask) - //  V
-        ((v[array2Dto1D(i, j + 1, dimension + 1)] - 0.0f) * topWallMask); //  V
+        ( (v[array2Dto1D(i, j + 1, dimension + 1)] - 0.0f) * topWallMask); //  V
 
-      //      divergence[array2Dto1D(i, j, dimension)] =
-      //        (mix(u[array2Dto1D(i + 1, j, dimension + 1)], 0.0f,
-      //        rightWallMask)) -
-      //        (mix(u[array2Dto1D(i, j, dimension + 1)], 0.0f, leftWallMask)) +
-      //        (mix(v[array2Dto1D(i, j + 1, dimension + 1)], 0.0f,
-      //        topWallMask)) -
-      //        (mix(v[array2Dto1D(i, j, dimension + 1)], 0.0f,
-      //        bottomWallMask));
+//            divergence[array2Dto1D(i, j, dimension)] =
+//              (mix(u[array2Dto1D(i + 1, j, dimension + 1)], 0.0f,
+//              rightWallMask)) -
+//              (mix(u[array2Dto1D(i, j, dimension + 1)], 0.0f, leftWallMask)) +
+//              (mix(v[array2Dto1D(i, j + 1, dimension + 1)], 0.0f,
+//              topWallMask)) -
+//              (mix(v[array2Dto1D(i, j, dimension + 1)], 0.0f,
+//              bottomWallMask));
     }
   }
 }
@@ -687,25 +696,25 @@ advectVelSimple(vArray& uFrom, vArray& vFrom, vArray& uTo, vArray& vTo,
   int j;
 
 #pragma omp parallel for
-  for (j = 1; j < dimension; j++) {
+  for (j = 1; j < dimension ; j++) {
 #pragma omp simd safelen(32)
-    for (i = 1; i < dimension; i++) {
+    for (i = 1; i < dimension ; i++) {
       // THIS NEEDS INVESTIGATING! making the second line -1 fixes symmetry
-      float currentUVelU = i - sampleUAtFaceU(uFrom, i, j - 1, dimension);
-      float currentVVelU = j - sampleVAtFaceU(vFrom, i - 1, j, dimension);
+      float currentUVelU = i - sampleUAtFaceU(uFrom, i, j , dimension);
+      float currentVVelU = j - sampleVAtFaceU(vFrom, i -1 , j, dimension);
 
-      float currentUVelV = i - sampleUAtFaceV(uFrom, i, j - 1, dimension);
-      float currentVVelV = j - sampleVAtFaceV(vFrom, i - 1, j, dimension);
+      float currentUVelV = i - sampleUAtFaceV(uFrom, i, j , dimension);
+      float currentVVelV = j - sampleVAtFaceV(vFrom, i , j-1, dimension);
 
-      // stop from sampling outside
-      currentUVelU =
-        std::min((float)(dimension - 1), std::max(1.0f, currentUVelU));
-      currentVVelU =
-        std::min((float)(dimension - 1), std::max(1.0f, currentVVelU));
-      currentUVelV =
-        std::min((float)(dimension - 1), std::max(1.0f, currentUVelV));
-      currentVVelV =
-        std::min((float)(dimension - 1), std::max(1.0f, currentVVelV));
+      // stop from sampling outside TODO _ CAUSES ANTISYMMETRY WHEN ENABLED
+//      currentUVelU =
+//        std::min((float)(dimension - 1), std::max(1.0f, currentUVelU));
+//      currentVVelU =
+//        std::min((float)(dimension - 1), std::max(1.0f, currentVVelU));
+//      currentUVelV =
+//        std::min((float)(dimension - 1), std::max(1.0f, currentUVelV));
+//      currentVVelV =
+//        std::min((float)(dimension - 1), std::max(1.0f, currentVVelV));
 
       uTo[array2Dto1D(i, j, dimension)] =
         sampleTrilinear(uFrom, currentUVelU, currentVVelU, dimension);
@@ -721,9 +730,9 @@ project(const vArray& pressure, vArray& vu, vArray& vv, int dimension)
 {
   int i, j = 0;
 #pragma omp parallel for
-  for (j = 1; j <= dimension; j++) {
+  for (j = 1; j < dimension -1; j++) {
 #pragma omp simd safelen(32)
-    for (i = 1; i <= dimension; i++) {
+    for (i = 1; i < dimension -1; i++) {
 
       vu[array2Dto1D(i, j, dimension + 1)] -=
         pressure[array2Dto1D(i, j, dimension)];
@@ -734,9 +743,9 @@ project(const vArray& pressure, vArray& vu, vArray& vv, int dimension)
   }
 
 #pragma omp parallel for
-  for (j = 1; j <= dimension; j++) {
+  for (j = 1; j < dimension -1; j++) {
 #pragma omp simd safelen(32)
-    for (i = 1; i <= dimension; i++) {
+    for (i = 1; i < dimension -1; i++) {
 
       vu[array2Dto1D(i + 1, j, dimension + 1)] +=
         pressure[array2Dto1D(i, j, dimension)];
@@ -746,10 +755,11 @@ project(const vArray& pressure, vArray& vu, vArray& vv, int dimension)
     }
   }
 
+  //this goes from 0 to end because we want to set boundary values for all vel
 #pragma omp parallel for
-  for (j = 0; j <= dimension; j++) {
+  for (j = 0; j <= dimension ; j++) {
 #pragma omp simd safelen(32)
-    for (i = 0; i <= dimension; i++) {
+    for (i = 0; i <= dimension ; i++) {
 
       int leftWallMask = when_eq(i, 0);
       int bottomWallMask = when_eq(j, 0);
@@ -765,9 +775,9 @@ project(const vArray& pressure, vArray& vu, vArray& vv, int dimension)
   }
 
 #pragma omp parallel for
-  for (j = 0; j <= dimension; j++) {
+  for (j = 0; j <= dimension ; j++) {
 #pragma omp simd safelen(32)
-    for (i = 0; i <= dimension; i++) {
+    for (i = 0; i <= dimension ; i++) {
 
       int rightWallMask = when_eq(i, dimension - 1);
       int topWallMask = when_eq(j, dimension - 1);
@@ -801,23 +811,25 @@ emit(vArray& density, vArray& u, int dimension, double time)
       int insideBoundary =
         leftWallMask | rightWallMask | bottomWallMask | topWallMask;
 
-      if (ImplicitCircle((i + 0.5f) - (dimension / 2) + sin(time * 0.1f) * 10,
-                         (j + 0.5f) - (dimension / 8),
-                         (dimension / 6)) < 0.0f) {
+      if (ImplicitCircle((i +0.5f+ sin(time * 0.1f) * 10) - (dimension / 2) ,
+                         (j +0.5f) - (dimension / 6),
+                         (dimension / 8)) < 0.5f) {
         density[array2Dto1D(i, j, dimension)] +=
           mix(0.04, 0.0f, insideBoundary);
         u[array2Dto1D(i, j, dimension)] -= cos(time * 0.1f) * 0.01;
+
       }
     }
   }
 
+  //
   //
 }
 
 int
 main(int argc, char* argv[])
 {
-  const int dimension = 512;
+  const int dimension = 64;
   const int MAC_DIM = dimension + 1;
 
   const int screenDim = 840;
@@ -989,8 +1001,8 @@ main(int argc, char* argv[])
                GL_FLOAT, density.data());
   glGenerateMipmap(GL_TEXTURE_2D);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-  //  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-  //  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+//    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
 
@@ -1027,13 +1039,13 @@ main(int argc, char* argv[])
     bouyancy(u, v, density, dimension);
 
     calcDivergence(u, v, divergence, dimension);
-    pressureSolveJacobi(divergence, pressure, pressure2, 160, dimension);
-    project(pressure, u, v, dimension);
+    pressureSolveJacobi(divergence, pressure, pressure2, 120, dimension);
+    project(pressure, u, v, dimension );
 
     advectVelSimple(u, v, u2, v2, dimension + 1);
-    //bfecc(u, v, density2, tempDensity, density, dimension);
-     macCormackAdvect(u, v, density2, tempDensity, density, dimension);
-    // simpleAdvect(u, v, density2, density, dimension);
+    bfecc(u, v, density2, tempDensity, density, dimension);
+    //macCormackAdvect(u, v, density2, tempDensity, density, dimension);
+    //simpleAdvect(u, v, density2, density, dimension);
 
     swap(density2, density);
     swap(u, u2);
