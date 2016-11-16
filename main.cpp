@@ -146,9 +146,9 @@ sampleUAtFaceU(const vector<float>& uArray, int u, int v, int dim)
 float
 sampleVAtFaceU(const vector<float>& vArray, int u, int v, int dim)
 {
-  return (vArray[array2Dto1D(u, v - 1, dim)] +
-          vArray[array2Dto1D(u + 1, v - 1, dim)] +
-          vArray[array2Dto1D(u, v, dim)] + vArray[array2Dto1D(u + 1, v, dim)]) /
+  return (vArray[array2Dto1D(u -1, v + 1, dim)] +
+          vArray[array2Dto1D(u, v + 1, dim)] +
+          vArray[array2Dto1D(u -1, v, dim)] + vArray[array2Dto1D(u, v, dim)]) /
          4.0f;
 }
 
@@ -157,9 +157,9 @@ sampleVAtFaceU(const vector<float>& vArray, int u, int v, int dim)
 float
 sampleUAtFaceV(const vector<float>& uArray, int u, int v, int dim)
 {
-  return (uArray[array2Dto1D(u, v - 1, dim)] +
-          uArray[array2Dto1D(u + 1, v - 1, dim)] +
-          uArray[array2Dto1D(u, v, dim)] + uArray[array2Dto1D(u + 1, v, dim)]) /
+  return (uArray[array2Dto1D(u +1, v - 1, dim)] +
+          uArray[array2Dto1D(u, v - 1, dim)] +
+          uArray[array2Dto1D(u +1, v, dim)] + uArray[array2Dto1D(u, v, dim)]) /
          4.0f;
 }
 
@@ -566,7 +566,7 @@ bouyancy(vArray& u, vArray& v, const vArray& densityRead, const int dimension)
   int i;
   int j;
 
-  const float mult = 0.0012f;
+  const float mult = 0.0003f;
 
 #pragma omp parallel for
   for (j = 0; j < dimension; j++) {
@@ -701,26 +701,26 @@ advectVelSimple(vArray& uFrom, vArray& vFrom, vArray& uTo, vArray& vTo,
     for (i = 1; i < dimension ; i++) {
       // THIS NEEDS INVESTIGATING! making the second line -1 fixes symmetry
       float currentUVelU = i - sampleUAtFaceU(uFrom, i, j , dimension);
-      float currentVVelU = j - sampleVAtFaceU(vFrom, i -1 , j, dimension);
+      float currentVVelU = j - sampleVAtFaceU(vFrom, i  , j, dimension);
 
       float currentUVelV = i - sampleUAtFaceV(uFrom, i, j , dimension);
-      float currentVVelV = j - sampleVAtFaceV(vFrom, i , j-1, dimension);
+      float currentVVelV = j - sampleVAtFaceV(vFrom, i , j, dimension);
 
       // stop from sampling outside TODO _ CAUSES ANTISYMMETRY WHEN ENABLED
-//      currentUVelU =
-//        std::min((float)(dimension - 1), std::max(1.0f, currentUVelU));
-//      currentVVelU =
-//        std::min((float)(dimension - 1), std::max(1.0f, currentVVelU));
-//      currentUVelV =
-//        std::min((float)(dimension - 1), std::max(1.0f, currentUVelV));
-//      currentVVelV =
-//        std::min((float)(dimension - 1), std::max(1.0f, currentVVelV));
+      currentUVelU =
+        std::min((float)(dimension ), std::max(0.0f, currentUVelU));
+      currentVVelU =
+        std::min((float)(dimension ), std::max(0.0f, currentVVelU));
+      currentUVelV =
+        std::min((float)(dimension ), std::max(0.0f, currentUVelV));
+      currentVVelV =
+        std::min((float)(dimension ), std::max(0.0f, currentVVelV));
 
       uTo[array2Dto1D(i, j, dimension)] =
-        sampleTrilinear(uFrom, currentUVelU, currentVVelU, dimension);
+        sampleTrilinear(uFrom, currentUVelU, currentVVelU-0.5f, dimension);
 
       vTo[array2Dto1D(i, j, dimension)] =
-        sampleTrilinear(vFrom, currentUVelV, currentVVelV, dimension);
+        sampleTrilinear(vFrom, currentUVelV-0.5f, currentVVelV, dimension);
     }
   }
 }
@@ -811,13 +811,14 @@ emit(vArray& density, vArray& u, int dimension, double time)
       int insideBoundary =
         leftWallMask | rightWallMask | bottomWallMask | topWallMask;
 
-      if (ImplicitCircle((i +0.5f+ sin(time * 0.1f) * 10) - (dimension / 2) ,
-                         (j +0.5f) - (dimension / 6),
+      if (ImplicitCircle(
+                        ((i + 0.5f + sin(time * 0.1f* 20 ) - (dimension / 2))) ,
+                         (j + 0.5f) - (dimension / 6),
                          (dimension / 8)) < 0.5f) {
         density[array2Dto1D(i, j, dimension)] +=
           mix(0.04, 0.0f, insideBoundary);
-        u[array2Dto1D(i, j, dimension)] -= cos(time * 0.1f) * 0.01;
 
+        u[array2Dto1D(i, j, dimension)] -= cos(time * 0.1f) * 0.01;
       }
     }
   }
@@ -829,10 +830,10 @@ emit(vArray& density, vArray& u, int dimension, double time)
 int
 main(int argc, char* argv[])
 {
-  const int dimension = 64;
+  const int dimension = 256;
   const int MAC_DIM = dimension + 1;
 
-  const int screenDim = 840;
+  const int screenDim = 820;
   double time = 0.0;
 
   // scalar arrays for simulation grid
@@ -935,8 +936,8 @@ main(int argc, char* argv[])
 
   static std::string vertShaderTriangle = // Get vertex source
     "\
-        #version 330 core\
-        out vec2 texCoord;\
+        #version 330 core\n\
+        out vec2 texCoord;\n\
          \
         void main()\
         {\
@@ -948,11 +949,11 @@ main(int argc, char* argv[])
         }\
     ";
   static std::string fragTest = "\
-        #version 330 core\
+        #version 330 core\n\
         \
         \
-        in vec2 texCoord;\
-        out vec4 frag_colour;\
+        in vec2 texCoord;\n\
+        out vec4 frag_colour;\n\
         \
         uniform sampler2D ourTexture;\
         \
@@ -1039,7 +1040,7 @@ main(int argc, char* argv[])
     bouyancy(u, v, density, dimension);
 
     calcDivergence(u, v, divergence, dimension);
-    pressureSolveJacobi(divergence, pressure, pressure2, 120, dimension);
+    pressureSolveJacobi(divergence, pressure, pressure2, 80, dimension);
     project(pressure, u, v, dimension );
 
     advectVelSimple(u, v, u2, v2, dimension + 1);
